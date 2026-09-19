@@ -15,7 +15,7 @@ public class UsersDbContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        // TODO: mapear la entidad User (PK Id, índice único por Email).
+        // Id identifica al usuario; Email no se puede repetir.
         modelBuilder.Entity<User>(e =>
         {
             e.HasKey(u => u.Id);
