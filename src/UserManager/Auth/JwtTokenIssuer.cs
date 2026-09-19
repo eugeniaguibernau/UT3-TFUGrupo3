@@ -1,26 +1,34 @@
+﻿using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Text;
+using Microsoft.IdentityModel.Tokens;
 using UserManager.Domain;
 
 namespace UserManager.Auth;
 
-/// <summary>
-/// Emite los JWT firmados con el secreto compartido (Jwt__Secret).
-/// Como el secreto es el mismo en todos los componentes, cualquier réplica
-/// puede validar el token sin consultar a UserManager → servicios sin estado.
-/// </summary>
 public class JwtTokenIssuer
 {
     private readonly IConfiguration _config;
 
     public JwtTokenIssuer(IConfiguration config) => _config = config;
 
-    /// <summary>Genera un JWT con el id y el email del usuario como claims.</summary>
     public string Issue(User user)
     {
-        // TODO: construir el JwtSecurityToken con:
-        //   - claim "sub" = user.Id, claim "email" = user.Email
-        //   - Issuer / Audience desde config (Jwt__Issuer / Jwt__Audience)
-        //   - firma HMAC-SHA256 con Jwt__Secret
-        //   - expiración (p. ej. 1 hora)
-        throw new NotImplementedException();
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Secret"]!));
+        var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+        var claims = new[]
+        {
+            new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
+            new Claim(JwtRegisteredClaimNames.Email, user.Email)
+        };
+
+        var token = new JwtSecurityToken(
+            issuer: _config["Jwt:Issuer"],
+            audience: _config["Jwt:Audience"],
+            claims: claims,
+            expires: DateTime.UtcNow.AddHours(1),
+            signingCredentials: credentials);
+
+        return new JwtSecurityTokenHandler().WriteToken(token);
     }
 }

@@ -1,3 +1,5 @@
+﻿using System.ComponentModel.DataAnnotations;
+using System.Text;
 using UserManager.Auth;
 using UserManager.Domain;
 using UserManager.Interfaces;
@@ -5,15 +7,7 @@ using UserManager.Repositories;
 
 namespace UserManager.Services;
 
-/// <summary>
-/// Lógica de negocio de usuarios y autenticación (diagrama: UserService).
-/// Implementa las dos interfaces expuestas por el componente.
-///
-/// NOTA sobre el diagrama: allí UserService.Register aparece como ": User".
-/// Para respetar el contrato de IAutenticacion (Register : string) devolvemos el
-/// JWT recién emitido; el User igualmente se persiste. Si se prefiere devolver el
-/// User, el endpoint puede volver a consultarlo con GetById.
-/// </summary>
+// Contiene las reglas de negocio; no depende de los controllers.
 public class UserService : IUsuarios, IAutenticacion
 {
     private readonly UserRepository _repository;
@@ -25,42 +19,70 @@ public class UserService : IUsuarios, IAutenticacion
         _tokens = tokens;
     }
 
-    // ── IAutenticacion ──────────────────────────────────────────────────────
+    // Conservamos el contrato del proyecto: registrar devuelve un JWT.
     public string Register(string name, string email, string password)
     {
-        // TODO:
-        //   1. Verificar que no exista otro usuario con ese email (FindByEmail).
-        //   2. Crear User con Id nuevo y PasswordHash = BCrypt.HashPassword(password).
-        //   3. Save.
-        //   4. Devolver _tokens.Issue(user).
-        throw new NotImplementedException();
+        if (string.IsNullOrWhiteSpace(name))
+            throw new ArgumentException("El nombre es obligatorio.");
+
+        email = NormalizeEmail(email);
+        if (!new EmailAddressAttribute().IsValid(email))
+            throw new ArgumentException("El email no es válido.");
+
+        // BCrypt admite hasta 72 bytes, que no siempre equivalen a 72 caracteres.
+        if (string.IsNullOrWhiteSpace(password) || password.Length < 8 ||
+            Encoding.UTF8.GetByteCount(password) > 72)
+            throw new ArgumentException("La contraseña debe tener al menos 8 caracteres y como máximo 72 bytes UTF-8.");
+
+        if (_repository.FindByEmail(email) != null)
+            throw new InvalidOperationException("Ya existe un usuario con ese email.");
+
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            Name = name.Trim(),
+            Email = email,
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword(password)
+        };
+
+        _repository.Save(user);
+        return _tokens.Issue(user);
     }
 
     public string Authenticate(string email, string password)
     {
-        // TODO:
-        //   1. FindByEmail; si no existe → credenciales inválidas.
-        //   2. BCrypt.Verify(password, user.PasswordHash); si falla → inválidas.
-        //   3. Devolver _tokens.Issue(user).
-        throw new NotImplementedException();
+        email = NormalizeEmail(email);
+        if (string.IsNullOrWhiteSpace(password) || Encoding.UTF8.GetByteCount(password) > 72)
+            throw new UnauthorizedAccessException("Email o contraseña incorrectos.");
+
+        var user = _repository.FindByEmail(email);
+        if (user == null || !BCrypt.Net.BCrypt.Verify(password, user.PasswordHash))
+            throw new UnauthorizedAccessException("Email o contraseña incorrectos.");
+
+        return _tokens.Issue(user);
     }
 
-    // ── IUsuarios ───────────────────────────────────────────────────────────
     public User GetById(Guid id)
     {
-        // TODO: _repository.FindById(id) (o lanzar NotFound si es null).
-        throw new NotImplementedException();
+        var user = _repository.FindById(id);
+        if (user == null)
+            throw new KeyNotFoundException("No se encontró el usuario.");
+
+        return user;
     }
 
     public List<User> GetAll()
     {
-        // TODO: devolver todos los usuarios (para asignar tareas / listar equipo).
-        throw new NotImplementedException();
+        return _repository.GetAll();
     }
 
     public bool Exist(Guid id)
     {
-        // TODO: true si _repository.FindById(id) != null.
-        throw new NotImplementedException();
+        return _repository.FindById(id) != null;
+    }
+
+    private static string NormalizeEmail(string email)
+    {
+        return (email ?? string.Empty).Trim().ToLowerInvariant();
     }
 }

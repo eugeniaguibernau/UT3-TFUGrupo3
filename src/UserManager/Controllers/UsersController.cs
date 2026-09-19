@@ -1,16 +1,12 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using UserManager.Interfaces;
 
 namespace UserManager.Controllers;
 
-/// <summary>
-/// Publica IUsuarios como endpoints REST. Consumidos por ProjectManager
-/// (valida dueño) y TaskManager (valida asignado), además del gateway.
-/// </summary>
 [ApiController]
 [Route("users")]
-[Authorize] // requiere JWT válido
+[Authorize]
 public class UsersController : ControllerBase
 {
     private readonly IUsuarios _usuarios;
@@ -20,21 +16,32 @@ public class UsersController : ControllerBase
     [HttpGet("{id:guid}")]
     public ActionResult<UserResponse> GetById(Guid id)
     {
-        // TODO: mapear _usuarios.GetById(id) → UserResponse (sin exponer el hash).
-        throw new NotImplementedException();
+        try
+        {
+            var user = _usuarios.GetById(id);
+            return Ok(new UserResponse(user.Id, user.Name, user.Email));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
     }
 
     [HttpGet]
     public ActionResult<List<UserResponse>> GetAll()
     {
-        // TODO: mapear _usuarios.GetAll() → List<UserResponse>.
-        throw new NotImplementedException();
+        var response = new List<UserResponse>();
+        foreach (var user in _usuarios.GetAll())
+        {
+            // La respuesta HTTP nunca incluye el hash de la contraseña.
+            response.Add(new UserResponse(user.Id, user.Name, user.Email));
+        }
+        return Ok(response);
     }
 
     [HttpGet("{id:guid}/exists")]
     public ActionResult<bool> Exists(Guid id)
     {
-        // TODO: return Ok(_usuarios.Exist(id));
-        throw new NotImplementedException();
+        return Ok(_usuarios.Exist(id));
     }
 }
