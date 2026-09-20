@@ -1,3 +1,6 @@
+using System.Net;
+using System.Net.Http.Json;
+
 namespace TaskManager.Contracts;
 
 /// <summary>
@@ -11,13 +14,23 @@ public class UsuariosHttpClient : IUsuarios
 
     public bool Exist(Guid id)
     {
-        // TODO: GET {Services:Users}/users/{id}/exists → bool
-        throw new NotImplementedException();
+        var resp = _http.GetAsync($"/users/{id}/exists").GetAwaiter().GetResult();
+
+        if (resp.StatusCode == HttpStatusCode.NotFound)
+            return false;
+
+        resp.EnsureSuccessStatusCode();
+        return resp.Content.ReadFromJsonAsync<bool>().GetAwaiter().GetResult();
     }
 
     public UserDto? GetById(Guid id)
     {
-        // TODO: GET {Services:Users}/users/{id} → UserDto (null si 404)
-        throw new NotImplementedException();
+        var resp = _http.GetAsync($"/users/{id}").GetAwaiter().GetResult();
+
+        if (resp.StatusCode == HttpStatusCode.NotFound)
+            return null;
+
+        resp.EnsureSuccessStatusCode();
+        return resp.Content.ReadFromJsonAsync<UserDto>().GetAwaiter().GetResult();
     }
 }

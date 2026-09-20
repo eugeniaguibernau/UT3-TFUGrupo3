@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using TaskManager.Domain;
 using TaskManager.Persistence;
 
@@ -13,28 +14,24 @@ public class TaskRepository
 
     public TaskRepository(TasksDbContext db) => _db = db;
 
+    /// <summary>Inserta o actualiza la tarea y persiste el cambio.</summary>
     public void Save(TaskItem task)
     {
-        // TODO: insertar o actualizar la tarea y persistir.
-        throw new NotImplementedException();
+        var existing = _db.Tasks.Find(task.Id);
+        if (existing is null)
+            _db.Tasks.Add(task);
+        else
+            _db.Entry(existing).CurrentValues.SetValues(task);
+
+        _db.SaveChanges();
     }
 
-    public TaskItem? FindById(Guid id)
-    {
-        // TODO: buscar por PK.
-        throw new NotImplementedException();
-    }
+    public TaskItem? FindById(Guid id) => _db.Tasks.Find(id);
 
-    public List<TaskItem> FindByProject(Guid projectId)
-    {
-        // TODO: tareas del proyecto (para pintar el dashboard).
-        throw new NotImplementedException();
-    }
+    public List<TaskItem> FindByProject(Guid projectId) =>
+        _db.Tasks.Where(t => t.ProjectId == projectId).ToList();
 
-    public int CountInProjectByUser(Guid userId)
-    {
-        // TODO: cantidad de tareas asignadas a un usuario.
-        //       Útil para reglas de negocio (p. ej. límite de carga por persona).
-        throw new NotImplementedException();
-    }
+    /// <summary>Cantidad de tareas asignadas a un usuario (carga de trabajo).</summary>
+    public int CountInProjectByUser(Guid userId) =>
+        _db.Tasks.Count(t => t.Assignee == userId);
 }
