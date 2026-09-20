@@ -1,11 +1,13 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using ProjectManager.Domain;
 using ProjectManager.Interfaces;
 
 namespace ProjectManager.Controllers;
 
 /// <summary>
 /// Publica IProyectos como endpoints REST.
+/// Las excepciones de dominio las traduce ExceptionHandlingMiddleware (404/409).
 /// </summary>
 [ApiController]
 [Route("projects")]
@@ -19,35 +21,38 @@ public class ProjectsController : ControllerBase
     [HttpPost]
     public ActionResult<ProjectResponse> Create([FromBody] CreateProjectRequest req)
     {
-        // TODO: _proyectos.CreateProject(req.OwnerId, req.Name) → ProjectResponse (201).
-        throw new NotImplementedException();
+        var project = _proyectos.CreateProject(req.OwnerId, req.Name);
+        return CreatedAtAction(nameof(GetById), new { id = project.Id }, Map(project));
     }
 
     [HttpGet("{id:guid}")]
     public ActionResult<ProjectResponse> GetById(Guid id)
     {
-        // TODO: _proyectos.GetById(id) → ProjectResponse.
-        throw new NotImplementedException();
+        return Ok(Map(_proyectos.GetById(id)));
     }
 
     [HttpGet]
     public ActionResult<List<ProjectResponse>> GetByUser([FromQuery] Guid userId)
     {
-        // TODO: _proyectos.GetProjectsByUser(userId) → List<ProjectResponse>.
-        throw new NotImplementedException();
+        var projects = _proyectos.GetProjectsByUser(userId);
+        return Ok(projects.Select(Map).ToList());
     }
 
     [HttpPost("{id:guid}/close")]
     public IActionResult Close(Guid id)
     {
-        // TODO: _proyectos.CloseProject(id); return NoContent();
-        throw new NotImplementedException();
+        _proyectos.CloseProject(id);
+        return NoContent();
     }
 
+    /// <summary>Consumido por TaskManager antes de crear/mover tareas.</summary>
     [HttpGet("{id:guid}/is-open")]
     public ActionResult<bool> IsOpen(Guid id)
     {
-        // TODO: return Ok(_proyectos.IsOpen(id));  (consumido por TaskManager)
-        throw new NotImplementedException();
+        _proyectos.GetById(id);   // proyecto inexistente → 404
+        return Ok(_proyectos.IsOpen(id));
     }
+
+    private static ProjectResponse Map(Project p) =>
+        new(p.Id, p.Name, p.OwnerId, p.Status);
 }

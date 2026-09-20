@@ -13,3 +13,10 @@ public class Project
     // "Open" | "Closed". IsOpen/CloseProject operan sobre este campo.
     public string Status { get; set; } = "Open";
 }
+
+/// <summary>Valores válidos de Project.Status (literales "Open" / "Closed").</summary>
+public static class ProjectStatuses
+{
+    public const string Open = "Open";
+    public const string Closed = "Closed";
+}

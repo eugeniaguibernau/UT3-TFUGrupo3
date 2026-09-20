@@ -13,21 +13,20 @@ public class ProjectRepository
 
     public ProjectRepository(ProjectsDbContext db) => _db = db;
 
+    /// <summary>Inserta o actualiza el proyecto y persiste el cambio.</summary>
     public void Save(Project project)
     {
-        // TODO: insertar o actualizar el proyecto y persistir.
-        throw new NotImplementedException();
+        var existing = _db.Projects.Find(project.Id);
+        if (existing is null)
+            _db.Projects.Add(project);
+        else
+            _db.Entry(existing).CurrentValues.SetValues(project);
+
+        _db.SaveChanges();
     }
 
-    public Project? FindById(Guid id)
-    {
-        // TODO: buscar por PK.
-        throw new NotImplementedException();
-    }
+    public Project? FindById(Guid id) => _db.Projects.Find(id);
 
-    public List<Project> FindByOwner(Guid ownerId)
-    {
-        // TODO: proyectos cuyo OwnerId == ownerId.
-        throw new NotImplementedException();
-    }
+    public List<Project> FindByOwner(Guid ownerId) =>
+        _db.Projects.Where(p => p.OwnerId == ownerId).ToList();
 }
