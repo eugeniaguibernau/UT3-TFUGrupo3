@@ -11,8 +11,15 @@
    ```bash
    docker compose up --build
    ```
+   > Si el puerto **8080** está ocupado en tu máquina, levantá el gateway en otro
+   > puerto y usalo en los scripts:
+   > ```bash
+   > GATEWAY_PORT=8090 docker compose up --build      # terminal 1
+   > export GW=http://localhost:8090                  # terminal 2 (antes de los scripts)
+   > ```
 4. Abrir una **segunda terminal** y pararse en la misma carpeta. Todos los
    comandos de acá en adelante van en esta segunda terminal.
+   Los scripts necesitan `curl` y `jq` instalados.
 
 ## 1. Componentes e interfaces
 
@@ -38,13 +45,11 @@
    ```bash
    ./scripts/demo-02-escalabilidad.sh
    ```
-2. Escala TaskManager a 3 réplicas y hace 20 pedidos seguidos al mismo
-   endpoint.
+2. Escala TaskManager a 3 réplicas y hace 30 pedidos seguidos al mismo
+   endpoint (registra su propio usuario y proyecto).
 3. Al final imprime una lista agrupada por hostname (header `X-Served-By`).
-   Si aparece más de un hostname, distintas réplicas respondieron los
-   pedidos.
-4. Si aparece un solo hostname, correr el script de nuevo (el reparto entre
-   réplicas es automático pero con pocos pedidos puede no notarse).
+   Tienen que aparecer los **3 hostnames** distintos: el gateway abre una
+   conexión nueva por pedido y Docker reparte entre las réplicas.
 
 ## 3. Contenedores
 
@@ -76,8 +81,8 @@
    ```bash
    ./scripts/demo-04-sin-estado.sh
    ```
-2. Reutiliza el token generado en el paso 1 (no vuelve a loguearse), escala
-   ProjectManager a 3 réplicas y hace 10 pedidos con ese mismo token.
-3. Todos los pedidos responden 200, aunque esas réplicas nuevas nunca vieron
-   el login original.
+2. Registra un usuario, escala ProjectManager a 3 réplicas y hace 12 pedidos
+   con el mismo token (emitido una sola vez).
+3. Todos los pedidos responden 200, y el script muestra que distintas réplicas
+   los atendieron aunque ninguna vio el login original.
 4. Al final, un pedido sin token da 401 en cualquier réplica.

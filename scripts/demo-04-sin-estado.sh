@@ -3,24 +3,40 @@
 # DEMO 4 — Servicios sin estado (JWT)
 #
 # El token se emite una vez y CUALQUIER réplica lo valida localmente con el
-# secreto compartido, sin sesión en memoria. Escalamos, repetimos la MISMA
-# request con el MISMO token y todas las réplicas la aceptan.
+# secreto compartido, sin sesión en memoria. Se escala ProjectManager, se
+# repite la misma request con el mismo token y todas las réplicas la aceptan.
 # ─────────────────────────────────────────────────────────────────────────────
-set -euo pipefail
-GW="${GW:-http://localhost:8080}"
+cd "$(dirname "$0")/.." || exit 1
+source scripts/_common.sh
 
-echo "== Login: obtener un token =="
-TOKEN=$(curl -s -X POST "$GW/auth/login" -H 'Content-Type: application/json' \
-  -d '{"email":"euge@ucu.edu.uy","password":"secret123"}' \
-  | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')
-echo "Token: $TOKEN"; echo
-
-echo "== Escalar ProjectManager y pegarle con el mismo token 10 veces =="
+echo "== Escalando ProjectManager a 3 réplicas =="
 docker compose up -d --scale projectmanager=3
-for i in $(seq 1 10); do
-  curl -s -o /dev/null -w "réplica respondió HTTP %{http_code}\n" \
-    -H "Authorization: Bearer $TOKEN" "$GW/projects?userId=<USER_ID>"
-done
+echo "   esperando a que las réplicas estén listas..."
+sleep 8
 
-echo; echo "Sin token → debe dar 401 en cualquier réplica:"
-curl -s -o /dev/null -w "HTTP %{http_code}\n" "$GW/projects?userId=<USER_ID>"
+wait_for_gateway
+bootstrap_user   # emite UN token
+echo "   token emitido una sola vez: ${TOKEN:0:24}..."
+
+echo; echo "== 12 requests con el MISMO token (se esperan todos 200) =="
+codes=""
+for _ in $(seq 1 12); do
+  codes="$codes $(curl -s -o /dev/null -w '%{http_code}' "${AUTH[@]}" "$GW/projects?userId=$OWNER")"
+done
+echo "   códigos:$codes"
+
+echo; echo "== réplicas de ProjectManager que atendieron (X-Served-By) =="
+for _ in $(seq 1 12); do
+  curl -s -D - -o /dev/null "${AUTH[@]}" "$GW/projects?userId=$OWNER" \
+    | awk 'tolower($1)=="x-served-by:"{print $2}' | tr -d '\r'
+done | sort | uniq -c | sort -rn
+
+echo; echo "== sin token → 401 en cualquier réplica =="
+NO=$(curl -s -o /dev/null -w '%{http_code}' "$GW/projects?userId=$OWNER")
+echo "   HTTP $NO"
+
+if [[ "$codes" == *" 401"* || "$codes" == *"000"* ]] || [ "$NO" != "401" ]; then
+  echo "✗ Demo 4 FALLÓ."; exit 1
+else
+  echo "✓ Demo 4 OK: el mismo token vale en todas las réplicas; sin token, 401."
+fi

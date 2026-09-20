@@ -2,21 +2,28 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # DEMO 2 — Escalabilidad horizontal
 #
-# Levanta varias réplicas de TaskManager y muestra cómo el gateway (vía DNS de
-# Docker) reparte las requests entre ellas.
-#
-# Requisito de implementación: que TaskManager devuelva su hostname en cada
-# respuesta (p. ej. header "X-Served-By: $HOSTNAME") para poder distinguir réplicas.
+# Levanta 3 réplicas de TaskManager y muestra cómo el gateway reparte las
+# requests entre ellas. Cada réplica marca su respuesta con el header
+# X-Served-By: <hostname>, así se ve qué instancia atendió cada pedido.
 # ─────────────────────────────────────────────────────────────────────────────
-set -euo pipefail
-GW="${GW:-http://localhost:8080}"
+cd "$(dirname "$0")/.." || exit 1
+source scripts/_common.sh
 
 echo "== Escalando TaskManager a 3 réplicas =="
 docker compose up -d --scale taskmanager=3
-docker compose ps taskmanager
+echo "   esperando a que las réplicas estén listas..."
+sleep 8
+docker compose ps taskmanager --format "table {{.Name}}\t{{.Status}}"
 
-echo; echo "== 20 requests seguidas: ver qué réplica responde cada una =="
-for i in $(seq 1 20); do
-  curl -s -o /dev/null -D - "$GW/tasks?projectId=<PROJECT_ID>" \
-    | grep -i '^X-Served-By:' || echo "(agregar header X-Served-By en TaskManager)"
-done | sort | uniq -c
+wait_for_gateway
+bootstrap_user
+PROJID=$(create_project "Escalabilidad")
+
+echo; echo "== 30 requests a GET /tasks: réplica que respondió cada una =="
+for _ in $(seq 1 30); do
+  curl -s -D - -o /dev/null "${AUTH[@]}" "$GW/tasks?projectId=$PROJID" \
+    | awk 'tolower($1)=="x-served-by:"{print $2}' | tr -d '\r'
+done | sort | uniq -c | sort -rn
+
+echo
+echo "Si aparecen 2 o 3 hostnames distintos, el gateway está balanceando entre réplicas. ✓"
