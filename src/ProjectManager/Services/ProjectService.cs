@@ -22,35 +22,44 @@ public class ProjectService : IProyectos
 
     public Project CreateProject(Guid ownerId, string name)
     {
-        // TODO:
-        //   1. Validar que el dueño exista: _usuarios.Exist(ownerId) (arista "valida dueño").
-        //   2. Crear Project { Id nuevo, Name, OwnerId, Status = "Open" }.
-        //   3. _repository.Save(project) y devolverlo.
-        throw new NotImplementedException();
+        if (string.IsNullOrWhiteSpace(name))
+            throw new BusinessRuleException("El nombre del proyecto no puede estar vacío.");
+
+        // Arista "valida dueño": el usuario vive en UserManager, no en esta base.
+        if (!_usuarios.Exist(ownerId))
+            throw new BusinessRuleException($"El usuario {ownerId} no existe.");
+
+        var project = new Project
+        {
+            Id = Guid.NewGuid(),
+            Name = name,
+            OwnerId = ownerId,
+            Status = ProjectStatuses.Open
+        };
+
+        _repository.Save(project);
+        return project;
     }
 
-    public Project GetById(Guid id)
-    {
-        // TODO: _repository.FindById(id) o NotFound.
-        throw new NotImplementedException();
-    }
+    public Project GetById(Guid id) =>
+        _repository.FindById(id)
+        ?? throw new NotFoundException($"El proyecto {id} no existe.");
 
-    public List<Project> GetProjectsByUser(Guid userId)
-    {
-        // TODO: _repository.FindByOwner(userId).
-        throw new NotImplementedException();
-    }
+    public List<Project> GetProjectsByUser(Guid userId) =>
+        _repository.FindByOwner(userId);
 
+    /// <summary>Cerrar un proyecto ya cerrado es idempotente (no es error).</summary>
     public void CloseProject(Guid id)
     {
-        // TODO: cargar el proyecto, Status = "Closed", Save.
-        throw new NotImplementedException();
+        var project = GetById(id);
+        project.Status = ProjectStatuses.Closed;
+        _repository.Save(project);
     }
 
-    public bool IsOpen(Guid id)
-    {
-        // TODO: true si el proyecto existe y Status == "Open".
-        //       Lo consulta TaskManager antes de crear/mover tareas.
-        throw new NotImplementedException();
-    }
+    /// <summary>
+    /// True solo si el proyecto existe y está abierto. Nunca lanza: lo consulta
+    /// TaskManager antes de crear/mover tareas.
+    /// </summary>
+    public bool IsOpen(Guid id) =>
+        _repository.FindById(id)?.Status == ProjectStatuses.Open;
 }
