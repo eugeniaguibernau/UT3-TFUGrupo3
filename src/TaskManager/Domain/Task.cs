@@ -16,6 +16,19 @@ public class TaskItem
 
     public string Title { get; set; } = string.Empty;
 
-    // "Todo" | "InProgress" | "Done".
-    public string Status { get; set; } = "Todo";
+    // Ver TaskStatuses para los valores válidos.
+    public string Status { get; set; } = TaskStatuses.Todo;
+}
+
+/// <summary>Estados válidos de una tarea en el tablero.</summary>
+public static class TaskStatuses
+{
+    public const string Todo = "Todo";
+    public const string InProgress = "InProgress";
+    public const string Done = "Done";
+
+    public static readonly string[] All = { Todo, InProgress, Done };
+
+    public static bool IsValid(string status) =>
+        All.Contains(status, StringComparer.OrdinalIgnoreCase);
 }

@@ -35,21 +35,38 @@ public class TaskService : ITareas
 
     public TaskItem CreateTask(Guid projectId, string title)
     {
-        // TODO:
-        //   1. Validar que el proyecto esté abierto: _proyectos.IsOpen(projectId)
-        //      (arista "valida proyecto abierto"); si no, rechazar.
-        //   2. Crear TaskItem { Id nuevo, ProjectId, Title, Status = "Todo",
-        //      Assignee = Guid.Empty } y guardarlo.
-        throw new NotImplementedException();
+        if (string.IsNullOrWhiteSpace(title))
+            throw new BusinessRuleException("El título de la tarea no puede estar vacío.");
+
+        // Arista "valida proyecto abierto".
+        if (!_proyectos.IsOpen(projectId))
+            throw new BusinessRuleException($"El proyecto {projectId} no existe o está cerrado.");
+
+        var task = new TaskItem
+        {
+            Id = Guid.NewGuid(),
+            ProjectId = projectId,
+            Title = title,
+            Status = TaskStatuses.Todo,
+            Assignee = Guid.Empty
+        };
+
+        _repository.Save(task);
+        return task;
     }
 
     public TaskItem AssignTask(Guid taskId, Guid userId)
     {
-        // TODO:
-        //   1. Validar que el usuario exista: _usuarios.Exist(userId)
-        //      (arista "valida asignado").
-        //   2. Cargar la tarea, setear Assignee = userId, guardar y devolverla.
-        throw new NotImplementedException();
+        // Arista "valida asignado".
+        if (!_usuarios.Exist(userId))
+            throw new BusinessRuleException($"El usuario {userId} no existe.");
+
+        var task = _repository.FindById(taskId)
+                   ?? throw new NotFoundException($"La tarea {taskId} no existe.");
+
+        task.Assignee = userId;
+        _repository.Save(task);
+        return task;
     }
 
     /// <summary>
@@ -59,30 +76,72 @@ public class TaskService : ITareas
     /// </summary>
     public TaskItem CreateAndAssign(Guid projectId, string title, Guid userId)
     {
-        // TODO:
-        //   using var tx = _db.Database.BeginTransaction();
-        //   try {
-        //       validar proyecto abierto y usuario existente;
-        //       crear tarea + asignar (dos escrituras);
-        //       _db.SaveChanges();
-        //       tx.Commit();
-        //   } catch { tx.Rollback(); throw; }   // atomicidad
-        throw new NotImplementedException();
+        if (string.IsNullOrWhiteSpace(title))
+            throw new BusinessRuleException("El título de la tarea no puede estar vacío.");
+
+        // Todas las escrituras dentro de una transacción: o se confirman todas, o
+        // ninguna (atomicidad). El rollback se dispara ante cualquier excepción.
+        using var tx = _db.Database.BeginTransaction();
+        try
+        {
+            if (!_proyectos.IsOpen(projectId))
+                throw new BusinessRuleException($"El proyecto {projectId} no existe o está cerrado.");
+
+            if (!_usuarios.Exist(userId))
+                throw new BusinessRuleException($"El usuario {userId} no existe.");
+
+            var task = new TaskItem
+            {
+                Id = Guid.NewGuid(),
+                ProjectId = projectId,
+                Title = title,
+                Status = TaskStatuses.Todo,
+                Assignee = userId
+            };
+
+            _db.Tasks.Add(task);
+            _db.SaveChanges();   // persiste creación + asignación juntas
+            tx.Commit();         // confirma la transacción (durabilidad)
+            return task;
+        }
+        catch
+        {
+            tx.Rollback();       // deshace todo si algo falló
+            throw;
+        }
     }
 
     public TaskItem ChangeStatus(Guid taskId, string status)
     {
-        // TODO:
-        //   1. Validar 'status' contra los permitidos ("Todo"/"InProgress"/"Done").
-        //   2. Cargar tarea, setear Status, guardar.
-        //   NOTA (aislamiento): dos usuarios podrían cambiar el estado a la vez;
-        //   usar transacción / control de concurrencia para no perder cambios.
-        throw new NotImplementedException();
+        if (!TaskStatuses.IsValid(status))
+            throw new BusinessRuleException(
+                $"Estado inválido '{status}'. Válidos: {string.Join(", ", TaskStatuses.All)}.");
+
+        // Transacción para aislar cambios concurrentes de estado (aislamiento):
+        // dos usuarios moviendo la misma tarea no deben pisarse.
+        using var tx = _db.Database.BeginTransaction();
+        try
+        {
+            var task = _repository.FindById(taskId)
+                       ?? throw new NotFoundException($"La tarea {taskId} no existe.");
+
+            task.Status = status;
+            _repository.Save(task);
+            tx.Commit();
+            return task;
+        }
+        catch
+        {
+            tx.Rollback();
+            throw;
+        }
     }
 
-    public List<TaskItem> GetTasksByProject(Guid projectId)
-    {
-        // TODO: _repository.FindByProject(projectId).
-        throw new NotImplementedException();
-    }
+    public List<TaskItem> GetTasksByProject(Guid projectId) =>
+        _repository.FindByProject(projectId);
+
+    /// <summary>Busca una tarea puntual (no está en ITareas; lo usa el endpoint GET /tasks/{id}).</summary>
+    public TaskItem GetById(Guid taskId) =>
+        _repository.FindById(taskId)
+        ?? throw new NotFoundException($"La tarea {taskId} no existe.");
 }
