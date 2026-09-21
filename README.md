@@ -10,13 +10,13 @@ como una **API REST** con `curl` o Postman.
 
 ## Conceptos de la UT3 que demuestra la arquitectura
 
-| Concepto (letra TFU)              | Dónde se ve en esta solución |
-|-----------------------------------|------------------------------|
-| **Componentes e interfaces**      | 4 componentes desplegables (`ApiGateway`, `UserManager`, `ProjectManager`, `TaskManager`), cada uno expone una interfaz (`IApiRest`, `IUsuarios`/`IAutenticacion`, `IProyectos`, `ITareas`) y consume las de otros. |
-| **Escalabilidad horizontal**      | Cada componente es un contenedor liviano; `docker compose up --scale taskmanager=3` levanta réplicas y el `ApiGateway` balancea entre ellas. |
-| **Contenedores (Docker)**         | Un `Dockerfile` por componente + `docker-compose.yml` que orquesta servicios y bases de datos. |
-| **ACID (con transacciones)**      | Cada componente de negocio tiene su propia base **PostgreSQL**; las operaciones que tocan varias filas (crear tarea + asignar) se ejecutan dentro de una transacción. |
-| **Servicios sin estado**          | La autenticación se resuelve con **JWT**; los servicios no guardan sesión en memoria, cualquier réplica puede atender cualquier request. |
+| Concepto (letra TFU)         | Dónde se ve en esta solución                                                                                                                                                                                        |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Componentes e interfaces** | 4 componentes desplegables (`ApiGateway`, `UserManager`, `ProjectManager`, `TaskManager`), cada uno expone una interfaz (`IApiRest`, `IUsuarios`/`IAutenticacion`, `IProyectos`, `ITareas`) y consume las de otros. |
+| **Escalabilidad horizontal** | Cada componente es un contenedor liviano; `docker compose up --scale taskmanager=3` levanta réplicas y el `ApiGateway` balancea entre ellas.                                                                        |
+| **Contenedores (Docker)**    | Un `Dockerfile` por componente + `docker-compose.yml` que orquesta servicios y bases de datos.                                                                                                                      |
+| **ACID (con transacciones)** | Cada componente de negocio tiene su propia base **PostgreSQL**; las operaciones que tocan varias filas (crear tarea + asignar) se ejecutan dentro de una transacción.                                               |
+| **Servicios sin estado**     | La autenticación se resuelve con **JWT**; los servicios no guardan sesión en memoria, cualquier réplica puede atender cualquier request.                                                                            |
 
 ## Componentes (según el diagrama)
 
@@ -38,6 +38,7 @@ como una **API REST** con `curl` o Postman.
 ```
 
 Dependencias entre componentes (aristas del diagrama):
+
 - `ApiGateway` → **valida token** contra `UserManager` (`IAutenticacion`) y **enruta/balancea** hacia los 3 servicios.
 - `TaskManager` → **valida proyecto abierto** (`IProyectos`) y **valida asignado** (`IUsuarios`).
 - `ProjectManager` → **valida dueño** (`IUsuarios`).
@@ -90,6 +91,3 @@ Escalar un componente:
 ```bash
 docker compose up --scale taskmanager=3
 ```
-
-> **Estado actual:** esqueleto. Los métodos de negocio lanzan `NotImplementedException`
-> y están marcados con `// TODO`. Ver cada archivo para la firma exacta a completar.

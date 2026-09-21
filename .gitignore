@@ -9,7 +9,7 @@ out/
 .vs/
 
 # Env local overrides
-.env.local
+.env
 
 # OS
 .DS_Store
